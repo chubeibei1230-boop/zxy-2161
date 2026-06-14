@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Home, RotateCcw, Trophy } from 'lucide-vue-next'
+import { Home, RotateCcw, Trophy, Target } from 'lucide-vue-next'
 import ScoreCard from '@/components/settlement/ScoreCard.vue'
 import TimelineList from '@/components/settlement/TimelineList.vue'
 import SuggestionCard from '@/components/settlement/SuggestionCard.vue'
+import TaskResultCard from '@/components/settlement/TaskResultCard.vue'
 import { useGameStore } from '@/stores/gameStore'
 import { useScoreStore } from '@/stores/scoreStore'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { getGameRecord, getTimelineEvents } from '@/utils/idb'
 import type { GameRecord } from '@/types'
+import { getTaskById } from '@/utils/tasks'
 
 const route = useRoute()
 const router = useRouter()
@@ -19,6 +21,8 @@ const timelineStore = useTimelineStore()
 
 const record = ref<GameRecord | null>(null)
 const isLoading = ref(true)
+
+const hasTaskResult = computed(() => record.value?.taskId && record.value?.taskResult)
 
 const loadRecord = async () => {
   const recordId = route.params.recordId as string
@@ -58,9 +62,23 @@ const handleBackToMenu = () => {
 
 const handleReplay = () => {
   if (gameStore.levelId) {
-    router.push(`/game/${gameStore.levelId}`)
+    if (record.value?.taskId) {
+      router.push({
+        path: `/game/${gameStore.levelId}`,
+        query: { taskId: record.value.taskId }
+      })
+    } else {
+      router.push(`/game/${gameStore.levelId}`)
+    }
   } else if (record.value) {
-    router.push(`/game/${record.value.levelId}`)
+    if (record.value.taskId) {
+      router.push({
+        path: `/game/${record.value.levelId}`,
+        query: { taskId: record.value.taskId }
+      })
+    } else {
+      router.push(`/game/${record.value.levelId}`)
+    }
   } else {
     router.push('/')
   }
@@ -79,8 +97,16 @@ const handleViewRecords = () => {
           <Trophy class="w-5 h-5" />
           <span class="font-bold">游戏结束</span>
         </div>
-        <h1 class="text-4xl font-bold text-slate-800 mb-2">调度任务完成</h1>
-        <p class="text-slate-600">查看本局表现，了解改进方向</p>
+        <h1 class="text-4xl font-bold text-slate-800 mb-2">
+          {{ hasTaskResult ? '任务挑战完成' : '调度任务完成' }}
+        </h1>
+        <p class="text-slate-600">
+          {{ hasTaskResult ? '查看任务完成情况和改进建议' : '查看本局表现，了解改进方向' }}
+        </p>
+        <div v-if="hasTaskResult && record" class="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-full">
+          <Target class="w-4 h-4" />
+          <span class="font-medium">{{ getTaskById(record.taskId!)?.name }}</span>
+        </div>
       </div>
 
       <div v-if="isLoading" class="flex items-center justify-center py-20">
@@ -88,11 +114,17 @@ const handleViewRecords = () => {
       </div>
 
       <div v-else class="space-y-6">
+        <TaskResultCard
+          v-if="hasTaskResult && record"
+          :task-id="record.taskId!"
+          :task-result="record.taskResult!"
+        />
+        
         <ScoreCard />
         
         <TimelineList />
         
-        <SuggestionCard />
+        <SuggestionCard v-if="!hasTaskResult" />
 
         <div class="flex items-center justify-center gap-4 pt-6">
           <button
@@ -107,7 +139,7 @@ const handleViewRecords = () => {
             class="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors"
           >
             <RotateCcw class="w-5 h-5" />
-            再玩一次
+            {{ hasTaskResult ? '再挑战一次' : '再玩一次' }}
           </button>
           <button
             @click="handleViewRecords"

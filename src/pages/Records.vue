@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Trophy, Star, Clock, Trash2, Calendar, MapPin } from 'lucide-vue-next'
+import { ArrowLeft, Trophy, Star, Clock, Trash2, Calendar, MapPin, Target, CheckCircle, XCircle } from 'lucide-vue-next'
 import { getGameRecords, clearAllData } from '@/utils/idb'
 import { LEVELS, getLevelById } from '@/utils/levels'
+import { getTaskById, TASK_ICONS, TASK_COLORS } from '@/utils/tasks'
 import type { GameRecord } from '@/types'
 import { formatTime } from '@/utils/helpers'
 import { getScoreColor } from '@/utils/formatters'
@@ -12,6 +13,7 @@ const router = useRouter()
 const records = ref<GameRecord[]>([])
 const isLoading = ref(true)
 const selectedLevel = ref<string | null>(null)
+const selectedTask = ref<string | null>(null)
 
 const loadRecords = async () => {
   try {
@@ -29,8 +31,18 @@ onMounted(() => {
 })
 
 const filteredRecords = computed(() => {
-  if (!selectedLevel.value) return records.value
-  return records.value.filter(r => r.levelId === selectedLevel.value)
+  let result = records.value
+  if (selectedLevel.value) {
+    result = result.filter(r => r.levelId === selectedLevel.value)
+  }
+  if (selectedTask.value === 'with_task') {
+    result = result.filter(r => r.taskId)
+  } else if (selectedTask.value === 'without_task') {
+    result = result.filter(r => !r.taskId)
+  } else if (selectedTask.value) {
+    result = result.filter(r => r.taskId === selectedTask.value)
+  }
+  return result
 })
 
 const stats = computed(() => {
@@ -42,13 +54,21 @@ const stats = computed(() => {
     ? Math.max(...records.value.map(r => r.score))
     : 0
   const totalStars = records.value.reduce((sum, r) => sum + r.stars, 0)
+  const taskGames = records.value.filter(r => r.taskId).length
+  const taskCompleted = records.value.filter(r => r.taskResult?.completed).length
 
-  return { totalGames, avgScore, bestScore, totalStars }
+  return { totalGames, avgScore, bestScore, totalStars, taskGames, taskCompleted }
 })
 
 const getLevelName = (levelId: string): string => {
   const level = getLevelById(levelId)
   return level?.name || '未知关卡'
+}
+
+const getTaskName = (taskId?: string): string => {
+  if (!taskId) return ''
+  const task = getTaskById(taskId as any)
+  return task?.name || '未知任务'
 }
 
 const formatDate = (timestamp: number): string => {
@@ -73,6 +93,17 @@ const handleClearData = async () => {
     }
   }
 }
+
+const taskFilterOptions = [
+  { value: null, label: '全部' },
+  { value: 'with_task', label: '有任务' },
+  { value: 'without_task', label: '无任务' },
+  { value: 'priority_protection', label: '优先保障' },
+  { value: 'evacuation', label: '紧急疏散' },
+  { value: 'minimize_empty_seats', label: '高效运力' },
+  { value: 'on_time_perfection', label: '准点率挑战' },
+  { value: 'area_specialist', label: '区域专家' },
+]
 </script>
 
 <template>
@@ -99,10 +130,24 @@ const handleClearData = async () => {
         </button>
       </div>
 
-      <div class="grid grid-cols-4 gap-4 mb-8">
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
         <div class="bg-white rounded-2xl p-6 shadow-lg">
           <p class="text-slate-500 text-sm mb-1">总游戏次数</p>
           <p class="text-3xl font-bold text-slate-800">{{ stats.totalGames }}</p>
+        </div>
+        <div class="bg-white rounded-2xl p-6 shadow-lg">
+          <p class="text-slate-500 text-sm mb-1">任务挑战次数</p>
+          <p class="text-3xl font-bold text-indigo-600 flex items-center gap-1">
+            <Target class="w-5 h-5" />
+            {{ stats.taskGames }}
+          </p>
+        </div>
+        <div class="bg-white rounded-2xl p-6 shadow-lg">
+          <p class="text-slate-500 text-sm mb-1">任务完成次数</p>
+          <p class="text-3xl font-bold text-emerald-600 flex items-center gap-1">
+            <CheckCircle class="w-5 h-5" />
+            {{ stats.taskCompleted }}
+          </p>
         </div>
         <div class="bg-white rounded-2xl p-6 shadow-lg">
           <p class="text-slate-500 text-sm mb-1">平均得分</p>
@@ -122,8 +167,8 @@ const handleClearData = async () => {
       </div>
 
       <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
-        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200">
-          <div class="flex items-center gap-4">
+        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 space-y-3">
+          <div class="flex items-center gap-4 flex-wrap">
             <span class="text-sm text-slate-600">筛选关卡:</span>
             <button
               @click="selectedLevel = null"
@@ -144,6 +189,20 @@ const handleClearData = async () => {
               ]"
             >
               {{ level.name }}
+            </button>
+          </div>
+          <div class="flex items-center gap-4 flex-wrap">
+            <span class="text-sm text-slate-600">筛选任务:</span>
+            <button
+              v-for="opt in taskFilterOptions"
+              :key="opt.value ?? 'all'"
+              @click="selectedTask = opt.value"
+              :class="[
+                'px-3 py-1 rounded-lg text-sm font-medium transition-colors',
+                selectedTask === opt.value ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+              ]"
+            >
+              {{ opt.label }}
             </button>
           </div>
         </div>
@@ -171,10 +230,26 @@ const handleClearData = async () => {
                   <MapPin class="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 class="font-bold text-slate-800">{{ getLevelName(record.levelId) }}</h3>
+                  <div class="flex items-center gap-2">
+                    <h3 class="font-bold text-slate-800">{{ getLevelName(record.levelId) }}</h3>
+                    <span v-if="record.taskId" :class="[
+                      'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
+                      record.taskResult?.completed 
+                        ? 'bg-emerald-100 text-emerald-700' 
+                        : 'bg-rose-100 text-rose-700'
+                    ]">
+                      <span>{{ TASK_ICONS[record.taskId as keyof typeof TASK_ICONS] }}</span>
+                      <span>{{ getTaskName(record.taskId) }}</span>
+                      <CheckCircle v-if="record.taskResult?.completed" class="w-3 h-3" />
+                      <XCircle v-else class="w-3 h-3" />
+                    </span>
+                  </div>
                   <p class="text-sm text-slate-500 flex items-center gap-2">
                     <Calendar class="w-3 h-3" />
                     {{ formatDate(record.timestamp) }}
+                    <span v-if="record.taskResult" class="text-indigo-500">
+                      任务得分: {{ record.taskResult.percentage }}%
+                    </span>
                   </p>
                 </div>
               </div>

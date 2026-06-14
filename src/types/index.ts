@@ -15,6 +15,81 @@ export type TimelineType =
   | 'vehicle_depart' 
   | 'event_trigger' 
   | 'score_change'
+  | 'task_update'
+  | 'task_failure'
+  | 'task_success'
+
+export type TaskType = 
+  | 'priority_protection'
+  | 'evacuation'
+  | 'minimize_empty_seats'
+  | 'on_time_perfection'
+  | 'area_specialist'
+
+export type TaskStatus = 'not_started' | 'in_progress' | 'completed' | 'failed'
+
+export interface TaskObjective {
+  id: string
+  description: string
+  target: number
+  current: number
+  unit: string
+  weight: number
+}
+
+export interface TaskWarning {
+  id: string
+  type: 'info' | 'warning' | 'danger'
+  message: string
+  gameTime: number
+}
+
+export interface TaskMistake {
+  id: string
+  description: string
+  impact: string
+  suggestion: string
+  gameTime: number
+  pointsLost: number
+}
+
+export interface TaskResult {
+  completed: boolean
+  score: number
+  maxScore: number
+  percentage: number
+  objectives: TaskObjective[]
+  mistakes: TaskMistake[]
+  suggestions: string[]
+}
+
+export interface MissionTask {
+  id: TaskType
+  name: string
+  description: string
+  icon: string
+  difficulty: 1 | 2 | 3
+  objectives: TaskObjective[]
+  timeLimit?: number
+  targetArea?: string
+  tips: string[]
+}
+
+export interface TaskProgress {
+  taskId: TaskType
+  status: TaskStatus
+  objectives: TaskObjective[]
+  warnings: TaskWarning[]
+  startTime: number
+  completedAt?: number
+}
+
+export interface TaskConfig {
+  enabled: boolean
+  selectedTask: TaskType | null
+  progress: TaskProgress | null
+  result: TaskResult | null
+}
 
 export interface Passenger {
   id: string
@@ -116,6 +191,8 @@ export interface GameRecord {
   stars: number
   playTime: number
   scoreBreakdown: Omit<Score, 'deductions'>
+  taskId?: TaskType
+  taskResult?: TaskResult
 }
 
 export interface DragData {

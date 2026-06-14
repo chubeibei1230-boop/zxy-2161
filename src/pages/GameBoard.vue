@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref, computed } from 'vue'
 import { useGameEngine } from '@/composables/useGameEngine'
 import PassengerQueue from '@/components/game/PassengerQueue.vue'
 import WaitingArea from '@/components/game/WaitingArea.vue'
@@ -6,10 +7,15 @@ import VehicleList from '@/components/game/VehicleList.vue'
 import EventBanner from '@/components/game/EventBanner.vue'
 import ControlPanel from '@/components/game/ControlPanel.vue'
 import CongestionWarning from '@/components/game/CongestionWarning.vue'
+import TaskProgress from '@/components/game/TaskProgress.vue'
 import { useGameStore } from '@/stores/gameStore'
 
 const gameStore = useGameStore()
-useGameEngine()
+const { taskTracker } = useGameEngine()
+
+const taskProgressExpanded = ref(true)
+
+const hasActiveTask = computed(() => taskTracker.isTaskActive.value && taskTracker.selectedTask.value)
 </script>
 
 <template>
@@ -28,6 +34,16 @@ useGameEngine()
         </div>
         <CongestionWarning />
       </div>
+
+      <TaskProgress
+        v-if="hasActiveTask"
+        :task-id="taskTracker.selectedTask.value!"
+        :progress="taskTracker.progress.value"
+        :warnings="taskTracker.taskWarnings.value"
+        :overall-progress="taskTracker.overallProgress.value"
+        :is-expanded="taskProgressExpanded"
+        @toggle="taskProgressExpanded = !taskProgressExpanded"
+      />
 
       <div class="flex-1 grid grid-cols-12 gap-4 min-h-0">
         <div class="col-span-3 min-h-0">

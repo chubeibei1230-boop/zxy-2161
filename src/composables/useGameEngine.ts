@@ -4,12 +4,15 @@ import { useGameStore } from '@/stores/gameStore'
 import { useScoreStore } from '@/stores/scoreStore'
 import { useTimelineStore } from '@/stores/timelineStore'
 import { useEventSystem } from './useEventSystem'
+import { useTaskTracker } from './useTaskTracker'
 import { saveGameRecord, saveTimelineEvents } from '@/utils/idb'
 import { PRIORITY_ORDER } from '@/types'
+import type { TaskType } from '@/types'
 
 let globalAnimationId: number | null = null
 let globalLastTimestamp = 0
 let activeLevelId: string | null = null
+let activeTaskId: TaskType | null = null
 
 export function useGameEngine() {
   const route = useRoute()
@@ -18,15 +21,25 @@ export function useGameEngine() {
   const scoreStore = useScoreStore()
   const timelineStore = useTimelineStore()
   const eventSystem = useEventSystem()
+  const taskTracker = useTaskTracker()
 
   const recordId = ref<string | null>(null)
 
-  function startLevel(levelId: string) {
+  function startLevel(levelId: string, taskId?: TaskType | null) {
     if (activeLevelId === levelId && (gameStore.status === 'playing' || gameStore.status === 'paused')) return
     
     stopGameLoop()
     gameStore.startGame(levelId)
     activeLevelId = levelId
+    activeTaskId = taskId || null
+
+    if (taskId) {
+      taskTracker.initializeTask(taskId)
+      taskTracker.initializeCounters()
+    } else {
+      taskTracker.resetTask()
+    }
+
     globalLastTimestamp = performance.now()
     startGameLoop()
   }
@@ -177,6 +190,13 @@ export function useGameEngine() {
       passenger.waitingAreaId = undefined
       boardedCount++
 
+      taskTracker.onPassengerBoard({
+        id: passenger.id,
+        priority: passenger.priority,
+        destination: passenger.destination,
+        arrivalTime: passenger.arrivalTime,
+      })
+
       const waitTime = gameStore.gameTime - passenger.arrivalTime
       if (waitTime > 180) {
         scoreStore.addDeduction(
@@ -197,6 +217,7 @@ export function useGameEngine() {
         gameStore.gameTime,
         'priority'
       )
+      taskTracker.onPriorityError(priorityErrorCount)
     }
 
     timelineStore.addEvent(
@@ -238,6 +259,14 @@ export function useGameEngine() {
         )
       }
     }
+
+    taskTracker.onVehicleDepart({
+      id: vehicle.id,
+      passengers: vehicle.passengers.length,
+      capacity: vehicle.capacity,
+      scheduledDeparture: vehicle.scheduledDeparture,
+      destination: vehicle.destination,
+    })
 
     timelineStore.addEvent(
       'vehicle_depart',
@@ -281,8 +310,16 @@ export function useGameEngine() {
       )
     }
 
+    const taskResult = taskTracker.finalizeTask()
+    const taskInfo = taskTracker.getTaskResultForRecord()
+
     const record = gameStore.endGame()
     recordId.value = record.id
+
+    if (taskInfo.taskId) {
+      record.taskId = taskInfo.taskId
+      record.taskResult = taskResult || undefined
+    }
 
     try {
       await saveGameRecord(record)
@@ -310,13 +347,16 @@ export function useGameEngine() {
   function quitGame() {
     stopGameLoop()
     activeLevelId = null
+    activeTaskId = null
+    taskTracker.resetTask()
     gameStore.resetGame()
     router.push('/')
   }
 
   watch(() => route.params.levelId, (newLevelId) => {
     if (newLevelId && typeof newLevelId === 'string') {
-      startLevel(newLevelId)
+      const taskId = route.query.taskId as TaskType | undefined
+      startLevel(newLevelId, taskId || null)
     }
   }, { immediate: true })
 
@@ -331,5 +371,6 @@ export function useGameEngine() {
     setSpeed,
     quitGame,
     endGame,
+    taskTracker,
   }
 }

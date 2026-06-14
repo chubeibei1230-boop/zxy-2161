@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Bus, Trophy, BookOpen, Settings, Info } from 'lucide-vue-next'
+import { Bus, Trophy, BookOpen, Settings, Info, Target } from 'lucide-vue-next'
 import LevelCard from '@/components/menu/LevelCard.vue'
+import TaskSelector from '@/components/menu/TaskSelector.vue'
 import { LEVELS } from '@/utils/levels'
 import { initDB } from '@/utils/idb'
 import { initLevels } from '@/utils/levels'
+import type { TaskType } from '@/types'
 
 const router = useRouter()
 const isLoading = ref(true)
 const showInstructions = ref(false)
+const showTaskSelector = ref(false)
+const selectedLevelId = ref<string | null>(null)
 
 const initialize = async () => {
   try {
@@ -27,7 +31,21 @@ onMounted(() => {
 })
 
 const handleLevelSelect = (levelId: string) => {
-  router.push(`/game/${levelId}`)
+  selectedLevelId.value = levelId
+  showTaskSelector.value = true
+}
+
+const handleTaskSelect = (taskId: TaskType | null) => {
+  if (!selectedLevelId.value) return
+  
+  if (taskId) {
+    router.push({
+      path: `/game/${selectedLevelId.value}`,
+      query: { taskId }
+    })
+  } else {
+    router.push(`/game/${selectedLevelId.value}`)
+  }
 }
 
 const handleViewRecords = () => {
@@ -69,6 +87,14 @@ const handleViewRecords = () => {
           历史记录
         </button>
       </div>
+
+      <TaskSelector
+        v-if="selectedLevelId"
+        :level-id="selectedLevelId"
+        :show="showTaskSelector"
+        @close="showTaskSelector = false"
+        @select="handleTaskSelect"
+      />
 
       <Transition name="fade">
         <div v-if="showInstructions" class="mb-8 p-6 bg-slate-800 rounded-2xl border border-slate-700">
@@ -112,6 +138,19 @@ const handleViewRecords = () => {
                 <li>• 乘客只能前往对应目的地的候车区</li>
                 <li>• 车辆到站后自动开始登车，按优先级排序</li>
                 <li>• 游戏成绩自动保存到本地</li>
+              </ul>
+            </div>
+            <div>
+              <h4 class="font-bold text-white mb-2 flex items-center gap-2">
+                <Target class="w-4 h-4 text-indigo-400" />
+                任务挑战模式
+              </h4>
+              <ul class="space-y-2 text-sm">
+                <li>• 选择关卡后可选择<span class="text-indigo-400">任务挑战</span>或直接开始</li>
+                <li>• 任务有特殊目标，完成可获得额外成就感</li>
+                <li>• 游戏过程中实时显示任务进度和风险提醒</li>
+                <li>• 结算时展示任务完成情况和改进建议</li>
+                <li>• 历史记录中可查看任务挑战成绩</li>
               </ul>
             </div>
           </div>
