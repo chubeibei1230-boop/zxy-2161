@@ -9,13 +9,15 @@ import ControlPanel from '@/components/game/ControlPanel.vue'
 import CongestionWarning from '@/components/game/CongestionWarning.vue'
 import TaskProgress from '@/components/game/TaskProgress.vue'
 import { useGameStore } from '@/stores/gameStore'
+import { useTaskTracker } from '@/stores/taskTracker'
 
 const gameStore = useGameStore()
-const { taskTracker } = useGameEngine()
+const gameEngine = useGameEngine()
+const taskTracker = useTaskTracker()
 
 const taskProgressExpanded = ref(true)
 
-const hasActiveTask = computed(() => taskTracker.isTaskActive.value && taskTracker.selectedTask.value)
+const hasActiveTask = computed(() => taskTracker.isTaskActive && taskTracker.selectedTask)
 </script>
 
 <template>
@@ -37,10 +39,10 @@ const hasActiveTask = computed(() => taskTracker.isTaskActive.value && taskTrack
 
       <TaskProgress
         v-if="hasActiveTask"
-        :task-id="taskTracker.selectedTask.value!"
-        :progress="taskTracker.progress.value"
-        :warnings="taskTracker.taskWarnings.value"
-        :overall-progress="taskTracker.overallProgress.value"
+        :task-id="taskTracker.selectedTask!"
+        :progress="taskTracker.progress"
+        :warnings="taskTracker.taskWarnings"
+        :overall-progress="taskTracker.overallProgress"
         :is-expanded="taskProgressExpanded"
         @toggle="taskProgressExpanded = !taskProgressExpanded"
       />

@@ -3,11 +3,20 @@ import { computed } from 'vue'
 import { Target, CheckCircle, XCircle, AlertTriangle, TrendingUp, Lightbulb, Clock, Award } from 'lucide-vue-next'
 import type { TaskResult, TaskType, TaskMistake, TaskObjective } from '@/types'
 import { TASK_ICONS, TASK_COLORS, getTaskById } from '@/utils/tasks'
+import { useTaskTracker } from '@/stores/taskTracker'
 
 const props = defineProps<{
   taskId: TaskType
   taskResult: TaskResult
 }>()
+
+const taskTracker = useTaskTracker()
+
+const LOWER_IS_BETTER_IDS = new Set([
+  'zero_priority_errors', 'no_left_behind', 'low_empty_count',
+  'delay_count', 'max_delay',
+])
+const UPPER_LIMIT_IDS = new Set(['target_wait_time', 'time_bonus'])
 
 const taskConfig = computed(() => getTaskById(props.taskId))
 
@@ -31,29 +40,21 @@ const getStatusText = (percentage: number) => {
 }
 
 const getObjectiveStatus = (obj: TaskObjective) => {
+  if (LOWER_IS_BETTER_IDS.has(obj.id)) {
+    if (obj.current <= obj.target) return 'success'
+    return obj.current <= obj.target + 2 ? 'warning' : 'danger'
+  }
+  if (UPPER_LIMIT_IDS.has(obj.id)) {
+    return obj.current <= obj.target ? 'success' : 'danger'
+  }
   const ratio = obj.current / Math.max(1, obj.target)
-  if (obj.id === 'zero_priority_errors' || obj.id === 'no_left_behind' || obj.id === 'low_empty_count' || obj.id === 'delay_count' || obj.id === 'max_delay') {
-    if (obj.current <= obj.target) return 'success'
-    return 'danger'
-  }
-  if (obj.id === 'target_wait_time' || obj.id === 'time_bonus') {
-    if (obj.current <= obj.target) return 'success'
-    return 'danger'
-  }
   if (ratio >= 0.9) return 'success'
   if (ratio >= 0.6) return 'warning'
   return 'danger'
 }
 
 const getObjectiveProgress = (obj: TaskObjective) => {
-  if (obj.id === 'zero_priority_errors' || obj.id === 'no_left_behind' || obj.id === 'low_empty_count' || obj.id === 'delay_count' || obj.id === 'max_delay') {
-    if (obj.target === 0) return obj.current === 0 ? 100 : Math.max(0, 100 - (obj.current * 20))
-    return Math.max(0, 100 - ((obj.current - obj.target) / obj.target) * 100)
-  }
-  if (obj.id === 'target_wait_time' || obj.id === 'time_bonus') {
-    return obj.current <= obj.target ? 100 : Math.max(0, 100 - ((obj.current - obj.target) / obj.target) * 100)
-  }
-  return Math.min(100, (obj.current / Math.max(1, obj.target)) * 100)
+  return taskTracker.calcObjectiveProgress(obj)
 }
 
 const formatTime = (seconds: number) => {
