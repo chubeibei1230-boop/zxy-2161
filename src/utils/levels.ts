@@ -132,23 +132,24 @@ function createScheduledEvents(
 
     switch (type) {
       case 'surge':
-        event.data = { count: 2 + level + Math.floor(Math.random() * 2) }
+        event.data = { count: 2 + level + (i % 2) }
         break
       case 'delay':
         event.data = { 
-          vehicleIndex: Math.floor(Math.random() * vehicleCount),
-          delaySeconds: (2 + Math.floor(Math.random() * 3)) * 10
+          vehicleIndex: (i * 2 + level) % vehicleCount,
+          delaySeconds: (2 + ((i + level) % 3)) * 10
         }
         break
       case 'full':
         event.data = { 
-          destination: destinations[Math.floor(Math.random() * destinations.length)],
-          reduction: 2 + Math.floor(Math.random() * 2)
+          destination: destinations[(i + level) % destinations.length],
+          reduction: 2 + (i % 2)
         }
         break
       case 'priority_change':
         event.data = {
-          newPriority: (['normal', 'vip', 'disabled'] as const)[Math.floor(Math.random() * 3)]
+          passengerIndex: i + level,
+          newPriority: (['normal', 'vip', 'disabled'] as const)[(i + level) % 3]
         }
         break
     }

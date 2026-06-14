@@ -7,6 +7,10 @@ import { useEventSystem } from './useEventSystem'
 import { saveGameRecord, saveTimelineEvents } from '@/utils/idb'
 import { PRIORITY_ORDER } from '@/types'
 
+let globalAnimationId: number | null = null
+let globalLastTimestamp = 0
+let activeLevelId: string | null = null
+
 export function useGameEngine() {
   const route = useRoute()
   const router = useRouter()
@@ -15,18 +19,15 @@ export function useGameEngine() {
   const timelineStore = useTimelineStore()
   const eventSystem = useEventSystem()
 
-  const animationId = ref<number | null>(null)
-  const lastTimestamp = ref<number>(0)
   const recordId = ref<string | null>(null)
-  const isInitialized = ref(false)
 
   function startLevel(levelId: string) {
-    if (isInitialized.value) return
-    isInitialized.value = true
+    if (activeLevelId === levelId && (gameStore.status === 'playing' || gameStore.status === 'paused')) return
     
     stopGameLoop()
     gameStore.startGame(levelId)
-    lastTimestamp.value = performance.now()
+    activeLevelId = levelId
+    globalLastTimestamp = performance.now()
     startGameLoop()
   }
 
@@ -37,7 +38,7 @@ export function useGameEngine() {
       }
 
       if (!gameStore.isPaused) {
-        const delta = (timestamp - lastTimestamp.value) / 1000
+          const delta = (timestamp - globalLastTimestamp) / 1000
         if (delta > 0 && delta < 1) {
           gameStore.updateGameTime(delta)
           updatePassengerStatus()
@@ -47,17 +48,17 @@ export function useGameEngine() {
         }
       }
 
-      lastTimestamp.value = timestamp
-      animationId.value = requestAnimationFrame(loop)
+      globalLastTimestamp = timestamp
+      globalAnimationId = requestAnimationFrame(loop)
     }
 
-    animationId.value = requestAnimationFrame(loop)
+    globalAnimationId = requestAnimationFrame(loop)
   }
 
   function stopGameLoop() {
-    if (animationId.value) {
-      cancelAnimationFrame(animationId.value)
-      animationId.value = null
+    if (globalAnimationId) {
+      cancelAnimationFrame(globalAnimationId)
+      globalAnimationId = null
     }
   }
 
@@ -296,7 +297,7 @@ export function useGameEngine() {
   function togglePause() {
     if (gameStore.isPaused) {
       gameStore.resumeGame()
-      lastTimestamp.value = performance.now()
+      globalLastTimestamp = performance.now()
     } else {
       gameStore.pauseGame()
     }
@@ -308,6 +309,7 @@ export function useGameEngine() {
 
   function quitGame() {
     stopGameLoop()
+    activeLevelId = null
     gameStore.resetGame()
     router.push('/')
   }

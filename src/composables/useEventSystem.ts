@@ -260,10 +260,11 @@ export function useEventSystem() {
       case 'priority_change': {
         const arrivedPassengers = gameStore.passengers.filter(
           p => p.status === 'arrived' || p.status === 'waiting'
-        )
+        ).sort((a, b) => a.arrivalTime - b.arrivalTime || a.id.localeCompare(b.id))
         if (arrivedPassengers.length === 0) return
         
-        const passenger = arrivedPassengers[Math.floor(Math.random() * arrivedPassengers.length)]
+        const passengerIndex = data.passengerIndex ?? 0
+        const passenger = arrivedPassengers[passengerIndex % arrivedPassengers.length]
         if (!data.newPriority) data.newPriority = 'vip'
         data.passengerId = passenger.id
         data.oldPriority = passenger.priority

@@ -179,12 +179,15 @@ export const useGameStore = defineStore('game', () => {
     const oldIndex = sorted.findIndex(v => v.id === vehicleId)
     if (oldIndex === -1) return
 
+    const departureSlots = sorted.map(v => v.scheduledDeparture).sort((a, b) => a - b)
+
     sorted.splice(oldIndex, 1)
     const targetIndex = Math.min(Math.max(0, newOrder), sorted.length)
     sorted.splice(targetIndex, 0, vehicle)
 
     sorted.forEach((v, i) => {
       v.order = i
+      v.scheduledDeparture = departureSlots[i]
     })
 
     timelineStore.addEvent(
