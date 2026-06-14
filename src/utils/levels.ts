@@ -1,4 +1,4 @@
-import type { LevelConfig, Passenger, Vehicle, WaitingArea, EventType } from '@/types'
+import type { LevelConfig, Passenger, Vehicle, WaitingArea, EventType, ScheduledEvent } from '@/types'
 import { generateId } from './helpers'
 
 function createPassengers(
@@ -108,6 +108,57 @@ function createEventPool(level: number): { type: EventType; weight: number }[] {
   return basePool
 }
 
+function createScheduledEvents(
+  level: number,
+  duration: number,
+  vehicleCount: number,
+  destinations: string[]
+): ScheduledEvent[] {
+  const events: ScheduledEvent[] = []
+  const eventCount = Math.floor(duration / 120) - 1
+
+  const eventTypes: EventType[] = ['surge', 'delay', 'full', 'priority_change']
+  
+  for (let i = 0; i < eventCount; i++) {
+    const triggerTime = Math.round(120 + i * (duration / (eventCount + 1)))
+    const typeIndex = (i + level) % eventTypes.length
+    const type = eventTypes[typeIndex]
+    
+    const event: ScheduledEvent = {
+      triggerTime,
+      type,
+      data: {},
+    }
+
+    switch (type) {
+      case 'surge':
+        event.data = { count: 2 + level + Math.floor(Math.random() * 2) }
+        break
+      case 'delay':
+        event.data = { 
+          vehicleIndex: Math.floor(Math.random() * vehicleCount),
+          delaySeconds: (2 + Math.floor(Math.random() * 3)) * 10
+        }
+        break
+      case 'full':
+        event.data = { 
+          destination: destinations[Math.floor(Math.random() * destinations.length)],
+          reduction: 2 + Math.floor(Math.random() * 2)
+        }
+        break
+      case 'priority_change':
+        event.data = {
+          newPriority: (['normal', 'vip', 'disabled'] as const)[Math.floor(Math.random() * 3)]
+        }
+        break
+    }
+
+    events.push(event)
+  }
+
+  return events.sort((a, b) => a.triggerTime - b.triggerTime)
+}
+
 export const LEVELS: LevelConfig[] = [
   {
     id: 'level-1',
@@ -121,6 +172,7 @@ export const LEVELS: LevelConfig[] = [
     vehicles: createVehicles(5, 8, ['A区', 'B区'], 120, 120),
     eventPool: createEventPool(1),
     eventFrequency: 180,
+    scheduledEvents: createScheduledEvents(1, 600, 5, ['A区', 'B区']),
   },
   {
     id: 'level-2',
@@ -134,6 +186,7 @@ export const LEVELS: LevelConfig[] = [
     vehicles: createVehicles(8, 10, ['A区', 'B区', 'C区'], 90, 90),
     eventPool: createEventPool(2),
     eventFrequency: 120,
+    scheduledEvents: createScheduledEvents(2, 720, 8, ['A区', 'B区', 'C区']),
   },
   {
     id: 'level-3',
@@ -147,6 +200,7 @@ export const LEVELS: LevelConfig[] = [
     vehicles: createVehicles(10, 9, ['A区', 'B区', 'C区'], 75, 90, true, true),
     eventPool: createEventPool(3),
     eventFrequency: 90,
+    scheduledEvents: createScheduledEvents(3, 900, 10, ['A区', 'B区', 'C区']),
   },
   {
     id: 'level-4',
@@ -160,6 +214,7 @@ export const LEVELS: LevelConfig[] = [
     vehicles: createVehicles(12, 6, ['A区', 'B区', 'C区', 'D区'], 60, 120, true, true),
     eventPool: createEventPool(4),
     eventFrequency: 60,
+    scheduledEvents: createScheduledEvents(4, 1200, 12, ['A区', 'B区', 'C区', 'D区']),
   },
 ]
 

@@ -18,8 +18,13 @@ export function useGameEngine() {
   const animationId = ref<number | null>(null)
   const lastTimestamp = ref<number>(0)
   const recordId = ref<string | null>(null)
+  const isInitialized = ref(false)
 
   function startLevel(levelId: string) {
+    if (isInitialized.value) return
+    isInitialized.value = true
+    
+    stopGameLoop()
     gameStore.startGame(levelId)
     lastTimestamp.value = performance.now()
     startGameLoop()
@@ -90,7 +95,11 @@ export function useGameEngine() {
   }
 
   function updateVehicleStatus() {
-    gameStore.vehicles.forEach(v => {
+    const sortedVehicles = [...gameStore.vehicles]
+      .filter(v => v.status !== 'departed')
+      .sort((a, b) => a.order - b.order)
+
+    sortedVehicles.forEach(v => {
       if (v.status === 'pending' && v.scheduledDeparture - 30 <= gameStore.gameTime) {
         v.status = 'arrived'
         timelineStore.addEvent(
@@ -241,9 +250,7 @@ export function useGameEngine() {
 
   function checkGameEvents() {
     eventSystem.cleanupExpiredEvents()
-    if (eventSystem.checkShouldTriggerEvent()) {
-      eventSystem.triggerRandomEvent()
-    }
+    eventSystem.checkAndTriggerScheduledEvents()
   }
 
   function checkGameEnd() {

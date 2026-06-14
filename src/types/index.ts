@@ -87,6 +87,12 @@ export interface Score {
   deductions: DeductionItem[]
 }
 
+export interface ScheduledEvent {
+  triggerTime: number
+  type: EventType
+  data?: Record<string, any>
+}
+
 export interface LevelConfig {
   id: string
   name: string
@@ -99,6 +105,7 @@ export interface LevelConfig {
   vehicles: Omit<Vehicle, 'actualDeparture' | 'status' | 'passengers' | 'order'>[]
   eventPool: { type: EventType; weight: number }[]
   eventFrequency: number
+  scheduledEvents: ScheduledEvent[]
 }
 
 export interface GameRecord {

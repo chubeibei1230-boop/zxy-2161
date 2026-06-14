@@ -7,7 +7,8 @@ import type {
   GameEvent, 
   GameStatus,
   LevelConfig,
-  GameRecord
+  GameRecord,
+  ScheduledEvent
 } from '@/types'
 import { generateId } from '@/utils/helpers'
 import { getLevelById } from '@/utils/levels'
@@ -26,6 +27,8 @@ export const useGameStore = defineStore('game', () => {
   const status = ref<GameStatus>('idle')
   const congestionRisk = ref(0)
   const lastEventTime = ref(0)
+  const scheduledEventIndex = ref(0)
+  const triggeredScheduledEvents = ref<string[]>([])
 
   const passengers = ref<Passenger[]>([])
   const waitingAreas = ref<WaitingArea[]>([])
@@ -72,6 +75,8 @@ export const useGameStore = defineStore('game', () => {
     status.value = 'playing'
     congestionRisk.value = 0
     lastEventTime.value = 0
+    scheduledEventIndex.value = 0
+    triggeredScheduledEvents.value = []
 
     passengers.value = config.passengers.map(p => ({
       ...p,
@@ -167,12 +172,14 @@ export const useGameStore = defineStore('game', () => {
     const vehicle = vehicles.value.find(v => v.id === vehicleId)
     if (!vehicle || vehicle.status === 'departed') return
 
-    const oldOrder = vehicle.order
     const sorted = [...vehicles.value]
       .filter(v => v.status !== 'departed')
       .sort((a, b) => a.order - b.order)
 
-    sorted.splice(oldOrder, 1)
+    const oldIndex = sorted.findIndex(v => v.id === vehicleId)
+    if (oldIndex === -1) return
+
+    sorted.splice(oldIndex, 1)
     const targetIndex = Math.min(Math.max(0, newOrder), sorted.length)
     sorted.splice(targetIndex, 0, vehicle)
 
@@ -254,12 +261,38 @@ export const useGameStore = defineStore('game', () => {
     status.value = 'idle'
     congestionRisk.value = 0
     lastEventTime.value = 0
+    scheduledEventIndex.value = 0
+    triggeredScheduledEvents.value = []
     passengers.value = []
     waitingAreas.value = []
     vehicles.value = []
     activeEvents.value = []
     scoreStore.resetScore()
     timelineStore.clearEvents()
+  }
+
+  function getDueScheduledEvents(): ScheduledEvent[] {
+    if (!levelConfig.value) return []
+
+    const due: ScheduledEvent[] = []
+    const events = levelConfig.value.scheduledEvents
+
+    while (
+      scheduledEventIndex.value < events.length &&
+      events[scheduledEventIndex.value].triggerTime <= gameTime.value
+    ) {
+      const event = events[scheduledEventIndex.value]
+      const eventKey = `${event.triggerTime}-${event.type}`
+      
+      if (!triggeredScheduledEvents.value.includes(eventKey)) {
+        due.push(event)
+        triggeredScheduledEvents.value.push(eventKey)
+      }
+      
+      scheduledEventIndex.value++
+    }
+
+    return due
   }
 
   function getPassengerById(id: string): Passenger | undefined {
@@ -283,6 +316,8 @@ export const useGameStore = defineStore('game', () => {
     status,
     congestionRisk,
     lastEventTime,
+    scheduledEventIndex,
+    triggeredScheduledEvents,
     passengers,
     waitingAreas,
     vehicles,
@@ -307,6 +342,7 @@ export const useGameStore = defineStore('game', () => {
     endGame,
     resetGame,
     updateCongestionRisk,
+    getDueScheduledEvents,
     getPassengerById,
     getWaitingAreaById,
     getVehicleById,

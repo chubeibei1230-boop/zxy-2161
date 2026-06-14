@@ -1,4 +1,4 @@
-import type { EventType, GameEvent, Priority } from '@/types'
+import type { EventType, GameEvent, Priority, ScheduledEvent } from '@/types'
 import { generateId, weightedRandom } from '@/utils/helpers'
 import { useGameStore } from '@/stores/gameStore'
 import { useTimelineStore } from '@/stores/timelineStore'
@@ -217,8 +217,92 @@ export function useEventSystem() {
     )
   }
 
+  function triggerScheduledEvent(scheduled: ScheduledEvent) {
+    const data = { ...(scheduled.data || {}) }
+    let description = ''
+
+    switch (scheduled.type) {
+      case 'surge': {
+        if (!data.count) data.count = 3
+        description = EVENT_DESCRIPTIONS.surge(data)
+        break
+      }
+      case 'delay': {
+        const pendingVehicles = gameStore.vehicles.filter(v => v.status === 'pending')
+        if (pendingVehicles.length === 0) return
+        
+        let vehicle
+        if (data.vehicleIndex !== undefined) {
+          vehicle = pendingVehicles[data.vehicleIndex % pendingVehicles.length]
+        } else {
+          vehicle = pendingVehicles[Math.floor(Math.random() * pendingVehicles.length)]
+        }
+        if (!data.delaySeconds) data.delaySeconds = 30
+        data.vehicleId = vehicle.id
+        data.vehicleName = vehicle.name
+        description = EVENT_DESCRIPTIONS.delay(data)
+        break
+      }
+      case 'full': {
+        let areas = gameStore.waitingAreas
+        if (data.destination) {
+          areas = areas.filter(a => a.destination === data.destination)
+        }
+        if (areas.length === 0) return
+        
+        const area = areas[Math.floor(Math.random() * areas.length)]
+        if (!data.reduction) data.reduction = 3
+        data.areaId = area.id
+        data.areaName = area.name
+        description = EVENT_DESCRIPTIONS.full(data)
+        break
+      }
+      case 'priority_change': {
+        const arrivedPassengers = gameStore.passengers.filter(
+          p => p.status === 'arrived' || p.status === 'waiting'
+        )
+        if (arrivedPassengers.length === 0) return
+        
+        const passenger = arrivedPassengers[Math.floor(Math.random() * arrivedPassengers.length)]
+        if (!data.newPriority) data.newPriority = 'vip'
+        data.passengerId = passenger.id
+        data.oldPriority = passenger.priority
+        description = EVENT_DESCRIPTIONS.priority_change(data)
+        break
+      }
+    }
+
+    const event: Omit<GameEvent, 'id' | 'resolved'> = {
+      type: scheduled.type,
+      triggerTime: gameStore.gameTime,
+      description,
+      data,
+      expirationTime: gameStore.gameTime + 60,
+    }
+
+    gameStore.triggerEvent(event)
+    timelineStore.addEvent(
+      'event_trigger',
+      description,
+      gameStore.gameTime,
+      '事件触发',
+      -5
+    )
+
+    applyEventEffect(event)
+    gameStore.lastEventTime = gameStore.gameTime
+  }
+
+  function checkAndTriggerScheduledEvents() {
+    const dueEvents = gameStore.getDueScheduledEvents()
+    dueEvents.forEach(event => triggerScheduledEvent(event))
+    return dueEvents.length > 0
+  }
+
   return {
     triggerRandomEvent,
+    triggerScheduledEvent,
+    checkAndTriggerScheduledEvents,
     checkShouldTriggerEvent,
     cleanupExpiredEvents,
   }
